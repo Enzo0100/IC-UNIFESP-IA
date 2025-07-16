@@ -1,0 +1,21 @@
+version: '3.7'
+
+services:
+  nginx-site:
+    image: enzo0001/teste-danilo:v1
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.nginx-site.rule=Host(`teste.nexttech.site`)"
+        - "traefik.http.routers.nginx-site.entrypoints=web"
+        - "traefik.http.services.nginx-site.loadbalancer.server.port=8080"
+    networks:
+      - network_public
+    expose:
+      - "8080"
+
+networks:
+  network_public:
+    external: true
+    name: network_public

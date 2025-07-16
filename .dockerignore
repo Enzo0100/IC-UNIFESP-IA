@@ -1,0 +1,21 @@
+# Ignorar arquivos e pastas relacionados ao Git
+.git
+.gitignore
+
+# Ignorar arquivos de configuração do Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Ignorar ambientes virtuais do Python
+.venv
+venv
+__pycache__
+
+# Ignorar arquivos de configuração de IDEs
+.vscode/
+.idea/
+
+# Arquivos de sistema operacional
+.DS_Store
+Thumbs.db
