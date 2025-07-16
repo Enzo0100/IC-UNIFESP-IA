@@ -8,67 +8,6 @@ interface ChatState {
   isLoading: boolean;
 }
 
-interface SendMessageOptions {
-  enableStreaming?: boolean;
-}
-
-// Mock API responses for demonstration
-const mockSources: Source[] = [
-  {
-    id: "doc_ai_education_001",
-    title: "O Futuro da Educação com IA - Relatório UNESCO",
-    url: "https://example.org/unesco-ai-education-report.pdf",
-    snippet: "A inteligência artificial tem o potencial de revolucionar a educação através da personalização do aprendizado, permitindo que cada estudante progrida em seu próprio ritmo e estilo de aprendizagem...",
-    fullContent: "A inteligência artificial tem o potencial de revolucionar a educação através da personalização do aprendizado, permitindo que cada estudante progrida em seu próprio ritmo e estilo de aprendizagem. Sistemas de IA podem analisar padrões de aprendizado individuais, identificar lacunas de conhecimento e sugerir recursos educacionais específicos para cada aluno."
-  },
-  {
-    id: "doc_ai_automation_002",
-    title: "Automação Inteligente na Gestão Educacional",
-    url: "https://example.com/automation-education-management.html",
-    snippet: "Ferramentas de IA podem automatizar tarefas administrativas como correção de provas, agendamento de aulas e geração de relatórios de progresso...",
-    fullContent: "Ferramentas de IA podem automatizar tarefas administrativas como correção de provas, agendamento de aulas e geração de relatórios de progresso, liberando tempo valioso para que educadores se concentrem no que realmente importa: o ensino e a mentoria dos alunos."
-  }
-];
-
-const generateMockResponse = (query: string): { response: string; sources: Source[] } => {
-  // Simple keyword-based response generation for demo
-  const lowerQuery = query.toLowerCase();
-  
-  if (lowerQuery.includes('inteligência artificial') || lowerQuery.includes('ia') || lowerQuery.includes('educação')) {
-    return {
-      response: `A inteligência artificial está transformando profundamente o setor educacional através de várias frentes inovadoras. 
-
-**Personalização do Aprendizado**: Sistemas de IA analisam o comportamento e desempenho individual de cada estudante, criando trilhas de aprendizagem customizadas que se adaptam ao ritmo e estilo de cada um.
-
-**Automação Inteligente**: Tarefas administrativas como correção de provas, geração de relatórios e agendamento são automatizadas, permitindo que educadores dediquem mais tempo ao ensino direto.
-
-**Análise Preditiva**: A IA pode identificar estudantes em risco de evasão ou com dificuldades específicas, permitindo intervenções precoces e direcionadas.
-
-**Assistentes Virtuais**: Chatbots educacionais disponíveis 24/7 para tirar dúvidas e fornecer suporte aos estudantes fora do horário de aula.
-
-Essa transformação não substitui o papel fundamental dos educadores, mas sim amplifica suas capacidades e cria um ambiente de aprendizagem mais eficiente e inclusivo.`,
-      sources: mockSources
-    };
-  }
-  
-  // Default response for other queries
-  return {
-    response: `Obrigado por sua pergunta sobre "${query}". Esta é uma resposta de demonstração do sistema RAG. 
-
-O sistema está processando sua consulta e buscando informações relevantes em nossa base de conhecimento para fornecer uma resposta precisa e fundamentada.
-
-Em um sistema real, esta resposta seria gerada com base em documentos específicos recuperados da base de dados de conhecimento, garantindo que todas as informações fornecidas sejam verificáveis e confiáveis.`,
-    sources: [
-      {
-        id: "demo_doc_001",
-        title: "Documentação do Sistema RAG",
-        snippet: "Este é um exemplo de como as fontes são exibidas no sistema...",
-        fullContent: "Este é um exemplo completo de como as fontes são exibidas no sistema RAG, mostrando a transparência e rastreabilidade das informações fornecidas."
-      }
-    ]
-  };
-};
-
 export function useChat() {
   const [chatState, setChatState] = useState<ChatState>({
     messages: [],
@@ -79,12 +18,10 @@ export function useChat() {
   const { toast } = useToast();
 
   const sendMessage = useCallback(async (
-    content: string, 
-    options: SendMessageOptions = {}
+    content: string
   ) => {
     if (!content.trim() || chatState.isLoading) return;
 
-    const { enableStreaming = true } = options;
     const messageId = Date.now().toString();
     const sessionId = chatState.sessionId || `session_${Date.now()}`;
 
@@ -104,74 +41,41 @@ export function useChat() {
     }));
 
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+      const response = await fetch('/api/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: content.trim() }),
+      });
 
-      const { response, sources } = generateMockResponse(content);
-
-      if (enableStreaming) {
-        // Simulate streaming response
-        const assistantMessage: Message = {
-          id: `assistant_${messageId}`,
-          role: 'assistant',
-          content: '',
-          sources: [],
-          timestamp: new Date(),
-          isStreaming: true
-        };
-
-        // Add empty assistant message
-        setChatState(prev => ({
-          ...prev,
-          messages: [...prev.messages, assistantMessage],
-          isLoading: false
-        }));
-
-        // Stream the response word by word
-        const words = response.split(' ');
-        for (let i = 0; i < words.length; i++) {
-          await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
-          
-          setChatState(prev => ({
-            ...prev,
-            messages: prev.messages.map(msg => 
-              msg.id === assistantMessage.id 
-                ? { 
-                    ...msg, 
-                    content: words.slice(0, i + 1).join(' ') + (i < words.length - 1 ? '...' : ''),
-                    isStreaming: i < words.length - 1
-                  }
-                : msg
-            )
-          }));
-        }
-
-        // Add sources after streaming is complete
-        setChatState(prev => ({
-          ...prev,
-          messages: prev.messages.map(msg => 
-            msg.id === assistantMessage.id 
-              ? { ...msg, sources, isStreaming: false }
-              : msg
-          )
-        }));
-
-      } else {
-        // Add complete assistant message
-        const assistantMessage: Message = {
-          id: `assistant_${messageId}`,
-          role: 'assistant',
-          content: response,
-          sources,
-          timestamp: new Date()
-        };
-
-        setChatState(prev => ({
-          ...prev,
-          messages: [...prev.messages, assistantMessage],
-          isLoading: false
-        }));
+      if (!response.ok) {
+        throw new Error('A resposta da rede não foi bem-sucedida');
       }
+
+      const data = await response.json();
+
+      const sources: Source[] = data.source_documents.map((doc: any, index: number) => ({
+        id: `source_${messageId}_${index}`,
+        title: doc.metadata.source || `Fonte ${index + 1}`,
+        snippet: doc.content,
+        fullContent: doc.content,
+        url: doc.metadata.url || undefined,
+      }));
+
+      const assistantMessage: Message = {
+        id: `assistant_${messageId}`,
+        role: 'assistant',
+        content: data.answer,
+        sources,
+        timestamp: new Date()
+      };
+
+      setChatState(prev => ({
+        ...prev,
+        messages: [...prev.messages, assistantMessage],
+        isLoading: false
+      }));
 
     } catch (error) {
       console.error('Error sending message:', error);

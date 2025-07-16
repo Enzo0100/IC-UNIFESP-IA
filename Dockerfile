@@ -6,7 +6,9 @@ WORKDIR /app
 
 # Copia o arquivo de dependências e instala as bibliotecas
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update && apt-get install -y curl && \
+    pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copia os arquivos da aplicação para o diretório de trabalho
 COPY . .

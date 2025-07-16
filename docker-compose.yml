@@ -1,0 +1,40 @@
+version: '3.8'
+
+networks:
+  rag_net:
+    driver: bridge
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    networks:
+      - rag_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./front-react
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./front-react:/app
+      - /app/node_modules # Evita que o node_modules local sobrescreva o do container
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - rag_net
