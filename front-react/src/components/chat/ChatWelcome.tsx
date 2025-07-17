@@ -1,35 +1,36 @@
 import { Card } from '@/components/ui/card';
-import { MessageSquare, Zap, Shield, Search } from 'lucide-react';
+import { Zap } from 'lucide-react';
+import { Map, Building, Trees, Search } from 'lucide-react';
 
 export function ChatWelcome() {
   const features = [
     {
-      icon: MessageSquare,
-      title: "Conversas Inteligentes",
-      description: "Faça perguntas complexas e receba respostas detalhadas baseadas em fontes confiáveis."
+      icon: Map,
+      title: "Análise Territorial",
+      description: "Entenda as dinâmicas e transformações do espaço urbano e rural."
     },
     {
       icon: Search,
-      title: "Busca Avançada",
-      description: "Acesso a uma vasta base de conhecimento com recuperação precisa de informações."
+      title: "Base de Conhecimento",
+      description: "Acesse informações e referências sobre legislação e gestão territorial."
     },
     {
-      icon: Zap,
-      title: "Respostas Rápidas",
-      description: "Streaming em tempo real para respostas instantâneas e experiência fluida."
+      icon: Building,
+      title: "Desafios da Urbanização",
+      description: "Explore os problemas decorrentes da expansão urbana desordenada."
     },
     {
-      icon: Shield,
-      title: "Fontes Transparentes",
-      description: "Todas as respostas incluem referências às fontes utilizadas para total transparência."
+      icon: Trees,
+      title: "Novos Usos do Rural",
+      description: "Descubra as novas formas de ocupação e uso das áreas rurais."
     }
   ];
 
   const exampleQuestions = [
-    "Como a inteligência artificial está transformando a educação?",
-    "Quais são as melhores práticas para desenvolvimento sustentável?",
-    "Explique os conceitos básicos de machine learning",
-    "Como funciona a tecnologia blockchain?",
+    "O que é o conceito de urbano-rural?",
+    "Quais são os principais desafios da gestão territorial no Brasil?",
+    "Como a legislação aborda a expansão urbana em áreas rurais?",
+    "Quais as consequências da urbanização não planejada?",
   ];
 
   return (
@@ -37,16 +38,15 @@ export function ChatWelcome() {
       {/* Hero section */}
       <div className="text-center space-y-4">
         <div className="w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center mx-auto shadow-glow">
-          <MessageSquare className="h-8 w-8 text-primary-foreground" />
+          <Map className="h-8 w-8 text-primary-foreground" />
         </div>
         
         <div className="space-y-2">
           <h1 className="text-4xl font-bold gradient-text">
-            Bem-vindo ao RAG Assistant
+            Urbano-Rural e Desafios à Gestão Territorial
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Seu assistente inteligente com tecnologia de Geração Aumentada por Recuperação. 
-            Faça perguntas e receba respostas precisas com fontes verificadas.
+            Para lidar com os desafios da gestão territorial, é crucial entender o conceito de urbano-rural e as transformações que o território sofre.
           </p>
         </div>
       </div>
