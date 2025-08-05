@@ -9,11 +9,11 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <ChatHeader 
+      {/* <ChatHeader 
         onNewChat={clearChat}
         messageCount={messages.length}
         isLoading={isLoading}
-      />
+      /> */}
 
       {/* Main chat area */}
       <ChatContainer 
