@@ -33,3 +33,5 @@ servidor publico
 outro perfil
 
 interesse geral > 
+
+quero que tenha uma arvore de decisao que ser for conversa normal tipo oi não responda sobre a base de dados

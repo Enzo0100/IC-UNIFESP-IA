@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tire sua dúvida com nossa IA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg: #d5e4d9;
+      --blue: #1b4557;
+      --green: #387b5b;
+      --light: #f9f9f9;
+      --ink: #1c1c1c;
+    }
+    *{ box-sizing:border-box }
+    html, body{ height:100% }
+    body{
+      margin:0; background:var(--bg); color:var(--blue);
+      font-family:"Montserrat", system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      line-height:1.5; font-weight:500;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .app{
+      width:min(920px, 100%);
+      height:min(90svh, 860px);
+      background:#fff; border:2px solid var(--green); border-radius:22px;
+      box-shadow:0 10px 30px rgba(27,69,87,.12);
+      display:grid; grid-template-rows:auto 1fr auto;
+      overflow:hidden;
+    }
+    header{
+      padding:18px 22px; background:linear-gradient(0deg, white, #edf3ef);
+      border-bottom:2px solid var(--green);
+      display:flex; align-items:center; gap:14px;
+    }
+    .logo{
+      width:42px; height:42px; border-radius:12px; background:var(--green);
+      display:grid; place-items:center; color:white; font-weight:700;
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,.25);
+      flex:0 0 42px;
+    }
+    .title{ font-size: clamp(20px, 3.4vw, 28px); color:var(--blue); margin:0; font-weight:700 }
+    .subtitle{ margin:0; color:var(--green); font-size: clamp(12px, 2.4vw, 14px) }
+
+    .chat{
+      padding:18px; overflow:auto; background:var(--bg);
+      display:flex; flex-direction:column; gap:14px;
+      scroll-behavior:smooth;
+    }
+    .msg{ display:flex; gap:10px; align-items:flex-end }
+    .msg .bubble{
+      max-width: 78ch; padding:12px 14px; border-radius:16px; border:1.5px solid var(--green);
+      background:white; color:var(--ink);
+      box-shadow:0 44px 14px rgba(27,69,87,.08);
+      word-wrap:break-word; white-space:pre-wrap;
+    }
+    .user{ justify-content:flex-end }
+    .user .bubble{
+      background:var(--light); color:var(--blue); border-color:var(--green);
+    }
+    .bot .avatar, .user .avatar{
+      width:34px; height:34px; border-radius:10px; background:var(--green); color:white;
+      display:grid; place-items:center; font-size:14px; font-weight:700; flex:0 0 34px;
+    }
+    .user .avatar{ background:var(--blue) }
+
+    .sources{ margin-top:10px; border-top:1px dashed var(--green); padding-top:10px; font-size:13px; color:var(--blue) }
+    .src-item{ background:white; border:1px solid var(--green); border-radius:12px; padding:10px; margin-top:8px }
+    .src-meta{ font-size:12px; opacity:.85 }
+
+    .input{
+      position: sticky; bottom: 0;
+      padding:12px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+      background:#fff; border-top:2px solid var(--green);
+      display:flex; gap:10px; align-items:center;
+    }
+    textarea{
+      flex:1; resize:none; min-height:46px; max-height:140px; border:2px solid var(--green); border-radius:14px;
+      padding:12px 14px; outline:none; background:#fff; color:var(--blue);
+      font:inherit;
+    }
+    textarea::placeholder{ color:#6a8895 }
+    button{
+      appearance:none; border:none; background:var(--green); color:#fff; font-weight:700;
+      padding:14px 16px; border-radius:14px; cursor:pointer; transition: transform .04s ease, box-shadow .2s ease;
+      border:2px solid var(--green);
+      box-shadow:0 6px 18px rgba(56,123,91,.28);
+      touch-action:manipulation;
+    }
+    button:hover{ transform: translateY(-1px) }
+    button:active{ transform: translateY(0) scale(.99) }
+
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+    .pill{
+      font-size:12px; padding:6px 10px; background:var(--bg); color:var(--blue); border:1px solid var(--green); border-radius:999px;
+    }
+    .small{ font-size:12px; opacity:.8 }
+
+    .hidden{ display:none }
+    .spinner{ width:18px; height:18px; border:3px solid rgba(56,123,91,.25); border-top-color:var(--green); border-radius:50%; animation:spin 1s linear infinite }
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+
+    button:focus, textarea:focus{ outline: 3px solid rgba(56,123,91,.45); outline-offset:2px }
+
+    /* ---- Seletor de Perfil ---- */
+    .profile-chooser{
+      margin:12px 12px 0; background:#fff; border:2px dashed var(--green); border-radius:16px; padding:12px;
+    }
+    .profile-chooser h3{ margin:4px 0 10px; font-size:16px; color:var(--blue) }
+    .profile-btn{
+      background:#fff; color:var(--blue); border-color:var(--green);
+      box-shadow:none; padding:10px 12px;
+    }
+    .profile-btn:focus{ outline:2px solid rgba(56,123,91,.45) }
+
+    /* ---- Responsividade Mobile ---- */
+    @media (max-width: 640px){
+      body{ align-items:stretch }
+      .app{
+        height: 100svh; width:100%;
+        border-radius:0; border-left:none; border-right:none;
+      }
+      header{ padding:14px 16px }
+      .chat{ padding:12px }
+      .msg .bubble{ max-width: 100% }
+      button{ padding:14px 14px }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application">
+    <header>
+      <div class="logo" aria-hidden="true">R</div>
+      <div>
+        <h1 class="title">Tire sua duvida com nossa IA</h1>
+        <p class="subtitle" id="subtitle">Escolha um perfil para começar</p>
+      </div>
+      <div style="margin-left:auto" class="row small">
+        <span class="pill" title="Status da API">
+          <span id="status-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#aaa;margin-right:8px;vertical-align:middle"></span>
+          <span id="status-text">Conectando…</span>
+        </span>
+        <span id="active-profile" class="pill hidden" title="Perfil ativo"></span>
+      </div>
+    </header>
+
+    <main id="chat" class="chat" aria-live="polite">
+      <!-- Seletor de perfil (aparece só na primeira interação) -->
+      <section id="profile-chooser" class="profile-chooser">
+        <h3>Antes de começar, selecione seu perfil:</h3>
+        <div class="row" role="group" aria-label="Selecione seu perfil">
+          <button class="profile-btn" data-profile="cidadao">Sou cidadão</button>
+          <button class="profile-btn" data-profile="servidor_publico">Sou servidor público</button>
+          <button class="profile-btn" data-profile="interesse_geral">Interesse geral</button>
+        </div>
+        <p class="small" style="margin-top:8px">Usaremos esse perfil na sessão para personalizar as respostas.</p>
+      </section>
+
+      <div class="msg bot">
+        <div class="avatar" aria-hidden="true">AI</div>
+        <div class="bubble" id="welcome">
+          Olá! Escolha um perfil para começarmos. Depois, envie sua pergunta — quando fizer sentido, consulto nossa base de dados; caso contrário, respondo de forma geral.
+        </div>
+      </div>
+    </main>
+
+    <form class="input" id="form">
+      <textarea id="q" placeholder="Digite sua pergunta… (Enter envia • Shift+Enter quebra linha)" rows="2" required
+        autocomplete="off" autocapitalize="sentences" spellcheck="true" disabled></textarea>
+      <button id="send" type="submit" aria-label="Enviar pergunta" disabled>
+        <span id="send-label">Enviar</span>
+        <span id="sending" class="hidden"><span class="spinner" aria-hidden="true"></span></span>
+      </button>
+    </form>
+  </div>
+
+  <script>
+    // >>>>>>> CONFIGURE AQUI <<<<<<<
+    const API_BASE = "http://localhost:8000";
+    // Endpoints: GET /  | POST /start | POST /ask
+
+    // Utilidades DOM
+    const el = (sel, root=document) => root.querySelector(sel);
+    const chat = el('#chat');
+    const form = el('#form');
+    const ta = el('#q');
+    const sendBtn = el('#send');
+    const sendLbl = el('#send-label');
+    const sending = el('#sending');
+    const statusDot = el('#status-dot');
+    const statusText = el('#status-text');
+    const profileChooser = el('#profile-chooser');
+    const activeProfilePill = el('#active-profile');
+    const subtitle = el('#subtitle');
+    const welcome = el('#welcome');
+
+    const PROFILE_LABELS = {
+      cidadao: 'Cidadão',
+      servidor_publico: 'Servidor Público',
+      interesse_geral: 'Interesse Geral',
+    };
+
+    // Sessão no cliente
+    function uuidv4(){
+      // UUID v4 simples
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+        const r = Math.random()*16|0, v = c==='x'? r : (r&0x3|0x8);
+        return v.toString(16);
+      });
+    }
+    function getSession(){
+      const sid = localStorage.getItem('gt_session_id') || null;
+      const prof = localStorage.getItem('gt_profile') || null;
+      return { sid, prof };
+    }
+    function setSession(sid, prof){
+      localStorage.setItem('gt_session_id', sid);
+      localStorage.setItem('gt_profile', prof);
+    }
+    function clearSession(){
+      localStorage.removeItem('gt_session_id');
+      localStorage.removeItem('gt_profile');
+    }
+
+    function setBusy(isBusy){
+      sendBtn.disabled = isBusy || sendBtn.disabled; // se já desabilitado por falta de perfil, mantém
+      sending.classList.toggle('hidden', !isBusy);
+      sendLbl.classList.toggle('hidden', isBusy);
+    }
+    function autoGrow(){
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(140, ta.scrollHeight) + 'px';
+    }
+    ta.addEventListener('input', autoGrow);
+
+    function addMessage(role, text){
+      const wrap = document.createElement('div');
+      wrap.className = `msg ${role}`;
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar';
+      avatar.textContent = role === 'user' ? 'Você' : 'AI';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+
+      wrap.appendChild(avatar);
+      wrap.appendChild(bubble);
+
+      chat.appendChild(wrap);
+      chat.scrollTop = chat.scrollHeight;
+      return wrap;
+    }
+
+    async function checkStatus(){
+      try{
+        const res = await fetch(`${API_BASE}/`);
+        if(!res.ok) throw new Error('Falha no status');
+        await res.json();
+        statusDot.style.background = '#26c281';
+        statusText.textContent = 'Online';
+      }catch(err){
+        statusDot.style.background = '#ff8a65';
+        statusText.textContent = 'Offline';
+      }
+    }
+
+    // ---- Seleção de Perfil ----
+    async function registerSession(sessionId, profile){
+      const payload = { session_id: sessionId, perfil: profile };
+      const res = await fetch(`${API_BASE}/start`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if(!res.ok){
+        const t = await res.text();
+        throw new Error(t || 'Falha ao iniciar sessão');
+      }
+      return res.json();
+    }
+
+    function enableInputUI(profile){
+      // Atualiza UI
+      activeProfilePill.textContent = `Perfil: ${PROFILE_LABELS[profile] || profile}`;
+      activeProfilePill.classList.remove('hidden');
+      subtitle.textContent = 'Perfil selecionado — pode perguntar!';
+      welcome.textContent = 'Perfeito — pode enviar sua pergunta. Quando necessário, consulto a base; caso contrário, respondo de forma geral.';
+      // Habilita input
+      ta.disabled = false;
+      sendBtn.disabled = false;
+      ta.focus();
+      autoGrow();
+      // Esconde seletor
+      profileChooser.classList.add('hidden');
+    }
+
+    async function handleProfilePick(profile){
+      try{
+        const { sid } = getSession();
+        const sessionId = sid || uuidv4();
+        await registerSession(sessionId, profile); // backend mapeia session → perfil
+        setSession(sessionId, profile);
+        enableInputUI(profile);
+      }catch(err){
+        addMessage('bot', 'Não consegui iniciar sua sessão. Verifique a API e tente novamente.');
+        console.error(err);
+      }
+    }
+
+    // Eventos dos botões de perfil
+    profileChooser.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.profile-btn');
+      if(!btn) return;
+      const profile = btn.getAttribute('data-profile');
+      handleProfilePick(profile);
+    });
+
+    // ---- Enter para enviar / Shift+Enter para quebrar linha ----
+    ta.addEventListener('keydown', (e)=>{
+      if (e.isComposing) return;
+      if (e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const q = ta.value.trim();
+      if(!q) return;
+      const { sid, prof } = getSession();
+      if(!sid || !prof){
+        addMessage('bot', 'Selecione um perfil antes de enviar perguntas.');
+        return;
+      }
+
+      addMessage('user', q);
+      ta.value=''; autoGrow();
+      setBusy(true);
+
+      const thinking = addMessage('bot', 'Pensando…');
+
+      try{
+        const url = `${API_BASE}/ask`;
+        // IMPORTANTÍSSIMO: manda sempre o mesmo session_id
+        const payload = { session_id: sid, query: q };
+        const res = await fetch(url, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if(!res.ok){
+          const t = await res.text();
+          throw new Error(t || 'Erro na requisição');
+        }
+        const data = await res.json();
+        const bubble = thinking.querySelector('.bubble');
+        bubble.textContent = data.answer || '(sem resposta)';
+      }catch(err){
+        const bubble = thinking.querySelector('.bubble');
+        bubble.textContent = 'Ocorreu um erro ao processar sua pergunta.';
+        const ebox = document.createElement('div');
+        ebox.className = 'sources';
+        ebox.textContent = (err && err.message) ? err.message : String(err);
+        bubble.appendChild(ebox);
+      }finally{
+        setBusy(false);
+      }
+    });
+
+    // ---- Inicialização ----
+    (async function init(){
+      checkStatus();
+      autoGrow();
+
+      // Se já houver sessão e perfil no cache, re-registra e habilita
+      const { sid, prof } = getSession();
+      if (sid && prof){
+        try{
+          await registerSession(sid, prof); // idempotente para o seu backend
+          enableInputUI(prof);
+        }catch(err){
+          // Se falhar, deixa para o usuário escolher novamente
+          console.warn('Falha ao restaurar sessão, selecione um perfil novamente.', err);
+          clearSession();
+          subtitle.textContent = 'Escolha um perfil para começar';
+          profileChooser.classList.remove('hidden');
+          ta.disabled = true; sendBtn.disabled = true;
+        }
+      }else{
+        // Sem sessão → espera seleção
+        subtitle.textContent = 'Escolha um perfil para começar';
+        profileChooser.classList.remove('hidden');
+        ta.disabled = true; sendBtn.disabled = true;
+      }
+
+      // melhora UX no mobile
+      window.addEventListener('resize', ()=>{
+        chat.scrollTop = chat.scrollHeight;
+      });
+    })();
+  </script>
+</body>
+</html>

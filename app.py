@@ -44,88 +44,6 @@ cache: Dict[str, object] = {}
 Perfil = Literal["cidadao", "servidor_publico", "interesse_geral"]
 
 # =========================
-# PROMPTS
-# =========================
-
-COORDENADOR_PROMPT = """
-Você é um agente coordenador de estratégias de gestão territorial em municípios brasileiros com vasta experiência na área pública, em especial no que tange ao parcelamento do solo, processos de urbanização, fiscalização territorial, regularização fundiária, planejamento urbano, ações civis públicas, interlocução institucional, governança territorial, processos administrativos, diagnósticos urbanos, relatórios, análises temporais e punições em caso de improbidade administrativa; com conhecimento também em legislação ambiental, administração pública, direito público e legislação urbanística.
-
-Sua missão é:
-1) Identificar o problema principal descrito (e.g., denúncia de loteamento clandestino, dúvida sobre competência institucional, pedido de modelo de notificação, enquadramento legal, exemplos de sucesso, dúvidas conceituais, sistemas/bases de dados públicos, etc.).
-2) Extrair palavras-chave relevantes fornecidas pelo usuário.
-3) Selecionar qual agente especializado deve responder:
-   - Agente 1 — 1_juridico: dúvidas sobre legislação, jurisprudência, conceitos legais, marcos temporais, restrições legais, punições.
-   - Agente 2 — 2_operacional: modelos de documentos, fluxos, checklists, procedimentos, respostas abrangentes e práticas.
-   - Agente 3 — 3_dados_sistemas: sistemas e bases de dados públicas a consultar, fontes oficiais, como instruir coleta e validação de dados.
-
-Regras:
-- Responda de forma objetiva e clara.
-- Se algo não estiver nos documentos/contexto, assuma papel orientador (diga o que falta e o que consultar).
-- Para o perfil "interesse_geral", utilize também resultados de busca na internet quando indicado pelo tema.
-"""
-
-AGENTE_JURIDICO_PROMPT = """
-Você é o Agente 1_Jurídico. Responda como especialista em direito público, legislação urbanística e ambiental,
-com foco em parcelamento do solo, regularização fundiária, fiscalização e improbidade administrativa.
-Use SOMENTE o contexto fornecido abaixo (documentos +, quando disponível, web) e seja preciso na fundamentação.
-Se a informação não estiver disponível, aponte lacunas e indique normas/órgãos que usualmente cobrem o tema.
-
-Contexto:
-{context}
-
-Pergunta do usuário:
-{question}
-
-Resposta (jurídico, objetiva, com referências normativas quando possível):
-"""
-
-AGENTE_OPERACIONAL_PROMPT = """
-Você é o Agente 2_Operacional. Produza instruções práticas, modelos e checklists (quando pertinente),
-incluindo campos, seções e itens obrigatórios. Aponte etapas, responsáveis possíveis e riscos.
-Use SOMENTE o contexto fornecido abaixo (documentos +, quando disponível, web). Se faltar informação, diga o que coletar.
-
-Contexto:
-{context}
-
-Pergunta do usuário:
-{question}
-
-Resposta (operacional, passo a passo, com modelo quando fizer sentido):
-"""
-
-AGENTE_DADOS_PROMPT = """
-Você é o Agente 3_Dados_e_Sistemas. Indique bases e sistemas públicos relevantes (municipais, estaduais e federais),
-campos/chaves de busca, como cruzar informações, critérios de qualidade e como registrar evidências.
-Use SOMENTE o contexto fornecido abaixo (documentos +, quando disponível, web). Se faltar, recomende fontes confiáveis.
-
-Contexto:
-{context}
-
-Pergunta do usuário:
-{question}
-
-Resposta (fontes, sistemas, como consultar, critérios de validação):
-"""
-
-# Prompt RAG "neutro" usado pelo coordenador para resumir/rotear (não devolvido ao usuário)
-COORDENADOR_RAG_PROMPT = """
-Atue como coordenador. Abaixo há contexto de documentos internos (e possivelmente web) + a pergunta do usuário.
-Produza um pequeno diagnóstico com:
-- Problema principal (1 linha);
-- 6 a 10 palavras-chave;
-- Agente recomendado: [1_juridico | 2_operacional | 3_dados_sistemas];
-- Justificativa breve da escolha.
-
-Contexto:
-{context}
-
-Pergunta:
-{question}
-
-Saída estruturada e concisa:
-"""
-
-# =========================
 # FUNÇÕES CORE (RAG)
 # =========================
 
@@ -185,6 +103,172 @@ def build_retriever(k: int = 5, fetch_k: int = 20):
         vectorstore = carregar_vectorstore()
         cache["vectorstore"] = vectorstore
     return vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": k, "fetch_k": fetch_k})
+
+
+# ====== DETECÇÃO DE SMALL TALK + RESPOSTA VIA GEMINI ======
+
+SMALL_TALK_PATTERNS = [
+    r"^\s*oi\b", r"^\s*ol[áa]\b", r"^\s*e[ai]\b",
+    r"\btudo bem\b", r"\btudo certo\b", r"\bbeleza\b|\bblz\b|\bsuave\b",
+    r"\bopa\b|\bsalve\b", r"\bbom dia\b|\bboa tarde\b|\bboa noite\b",
+    r"\bobrigad", r"\bvaleu\b", r"\btchau\b|\bat[eé] logo\b|\bat[eé]\b",
+    r"\bcomo vai\b",
+]
+
+def is_small_talk(query: str) -> bool:
+    q = (query or "").lower().strip()
+    if len(q.split()) <= 5:
+        import re
+        for pat in SMALL_TALK_PATTERNS:
+            if re.search(pat, q):
+                return True
+    return False
+
+def responder_small_talk_gemini(query: str) -> str:
+    """
+    Usa o Gemini com um prompt básico para responder conversas gerais,
+    sem consultar a base de dados.
+    """
+    llm = _get_llm(temp=0.7)  # mais criativo
+    prompt_basico = f"""
+Você é um assistente amigável e prestativo especializado em gestão e regimento territorial.
+Sua missão é responder de forma breve, cordial e natural a interações casuais do usuário.
+
+Pergunta ou cumprimento do usuário:
+{query}
+
+Resposta:
+"""
+    return llm.invoke(prompt_basico).content
+
+# =========================
+# NOVO: HEURÍSTICA — USAR OU NÃO O BANCO
+# =========================
+import re
+from typing import cast
+
+# limiar de similaridade do FAISS (nota: em FAISS do LangChain, score menor = mais similar)
+FAISS_SCORE_THRESHOLD = 0.35  # ajuste fino depois com seus dados
+
+_DOMINIO_KWS = [
+    "parcelamento do solo", "loteamento", "desmembramento", "regularização fundiária",
+    "fiscalização", "zoneamento", "outorga", "uso do solo", "iptu", "licenciamento",
+    "auto de infração", "improbidade", "plano diretor", "lei complementar", "código urbanístico",
+    "geoprocessamento", "croqui", "geo", "snirf", "sigef", "sei", "processo administrativo",
+]
+
+def _is_small_talk(q: str) -> bool:
+    qn = (q or "").lower().strip()
+    pats = [
+        r"^\s*oi\b", r"^\s*ol[áa]\b", r"^\s*e[ai]\b", r"\bbom dia\b|\bboa tarde\b|\bboa noite\b",
+        r"\btudo bem\b|\btudo certo\b|\bbeleza\b|\bblz\b|\bsuave\b",
+        r"\bopa\b|\bsalve\b", r"\bobrigad", r"\bvaleu\b", r"\btchau\b|\bat[eé]( logo)?\b",
+        r"\bcomo vai\b",
+    ]
+    if len(qn.split()) <= 5:
+        return any(re.search(p, qn) for p in pats)
+    return False
+
+def should_use_database(query: str) -> bool:
+    """
+    Retorna True se parece consulta técnica que se beneficia do RAG; caso contrário False.
+    Combina: (i) small talk; (ii) palavras do domínio; (iii) similaridade no FAISS.
+    """
+    q = (query or "").strip()
+    if _is_small_talk(q):
+        return False
+
+    # heurística por palavras do domínio
+    ql = q.lower()
+    has_domain_kw = any(kw in ql for kw in _DOMINIO_KWS)
+
+    # consulta rápida ao índice com score
+    try:
+        vectorstore = cache.get("vectorstore")
+        if vectorstore is None:
+            vectorstore = carregar_vectorstore()
+            cache["vectorstore"] = vectorstore
+        # retorna lista de (Document, score) com score menor = melhor
+        scored = vectorstore.similarity_search_with_score(q, k=3)
+        best_score = min((s for _, s in scored), default=1.0)
+        # usa DB se há palavra de domínio OU se a similaridade foi boa o suficiente
+        return has_domain_kw or (best_score <= FAISS_SCORE_THRESHOLD)
+    except Exception as e:
+        print(f"[Aviso] falha no teste de similaridade: {e}")
+        # fallback: se contém kw do domínio, usa DB; senão, não usa
+        return has_domain_kw
+
+# =========================
+# NOVO: AGENTE GENÉRICO (GEMINI) SEM RAG
+# =========================
+def responder_generico_gemini(query: str) -> str:
+    llm = _get_llm(temp=0.6)
+    prompt = f"""
+Você é um assistente amigável e claro, especializado em gestão/regimento territorial municipal no Brasil.
+Objetivo: responder brevemente, de forma útil e sem citar documentos internos, a perguntas gerais ou conversas.
+Se a pergunta exigir referência específica a leis locais, processos formais ou documentos internos, diga
+“posso detalhar se você quiser com base em documentos” — mas NÃO invente.
+
+Pergunta do usuário:
+{query}
+
+Resposta breve e direta:
+"""
+    return llm.invoke(prompt).content
+
+# =========================
+# PROMPTS DOS AGENTES
+# =========================
+COORDENADOR_PROMPT = """
+Você é um coordenador de estratégias de gestão territorial municipal.
+Sua missão:
+1) Identificar o problema principal.
+2) Extrair 6–10 palavras-chave.
+3) Escolher o agente: [1_juridico | 2_operacional | 3_dados_sistemas].
+4) Dizer “precisa_consultar_base: sim|não” — só “sim” quando a resposta depender de detalhes documentais/legais específicos.
+5) Justificar brevemente.
+
+Se o tema for genérico/intro e não exigir citação, prefira “precisa_consultar_base: não”.
+"""
+
+AGENTE_JURIDICO_PROMPT = """
+Você é o Agente 1_Jurídico (direito público/urbanístico/ambiental).
+Use SOMENTE o contexto a seguir se ele estiver presente. Se o contexto estiver vazio, não invente:
+diga o que falta e proponha próximos passos (normas/órgãos a consultar).
+Contexto (pode estar vazio):
+{context}
+
+Pergunta do usuário:
+{question}
+
+Resposta objetiva (fundamentação quando houver contexto):
+"""
+
+AGENTE_OPERACIONAL_PROMPT = """
+Você é o Agente 2_Operacional.
+Use SOMENTE o contexto a seguir se ele estiver presente. Se estiver vazio, dê instruções gerais com caveats
+e liste o que precisaria do usuário para detalhar.
+Contexto (pode estar vazio):
+{context}
+
+Pergunta do usuário:
+{question}
+
+Resposta (passo a passo, sucinta, com modelo se couber):
+"""
+
+AGENTE_DADOS_PROMPT = """
+Você é o Agente 3_Dados_e_Sistemas.
+Use SOMENTE o contexto a seguir se ele estiver presente. Se estiver vazio, sugira fontes públicas padrão.
+Contexto (pode estar vazio):
+{context}
+
+Pergunta do usuário:
+{question}
+
+Resposta (fontes/sistemas/consulta/validação):
+"""
+
 
 def montar_contexto_rag(query: str, perfil: Perfil, k: int = 6) -> Tuple[str, List[Dict]]:
     """
@@ -397,41 +481,50 @@ def start_session(req: StartRequest):
     SESSOES[req.session_id] = req.perfil
     return {"status": "ok", "session_id": req.session_id, "perfil": req.perfil}
 
+# ====== AJUSTE NO ENDPOINT /ask ======
+# =========================
+# AJUSTE NO /ask — desvio condicional
+# =========================
 @app.post("/ask", response_model=QueryResponse, tags=["Chatbot"])
 async def ask_question(request: QueryRequest):
-    """
-    Recebe uma pergunta. Determina o perfil (da sessão ou do corpo) e executa:
-    - Coordenador (diagnóstico + roteamento)
-    - Agente especializado (jurídico / operacional / dados)
-    - (Opcional) Busca web se perfil == interesse_geral
-    """
     if "qa_chain" not in cache or "vectorstore" not in cache:
         raise HTTPException(status_code=503, detail="Serviço indisponível. RAG não inicializado.")
 
-    # Descobre o perfil
-    perfil: Optional[Perfil] = None
+    # perfil
     if request.session_id and request.session_id in SESSOES:
-        perfil = SESSOES[request.session_id]
-    elif request.perfil:
-        perfil = request.perfil
+        perfil: Perfil = SESSOES[request.session_id]
     else:
-        # Default amigável: interesse_geral
-        perfil = "interesse_geral"
+        perfil = request.perfil or "interesse_geral"
 
     print(f"[ASK] Perfil: {perfil} | Pergunta: {request.query}")
 
+    # 0) decidir se consulta o banco
     try:
-        # 1) Coordenar (diagnóstico + rota)
+        usa_db = should_use_database(request.query)
+    except Exception as e:
+        print(f"[Aviso] falha na decisão de uso do DB: {e}")
+        usa_db = False  # fallback seguro
+
+    if not usa_db:
+        # → resposta direta pelo agente genérico (Gemini) sem RAG
+        resposta = responder_generico_gemini(request.query)
+        return QueryResponse(
+            answer=resposta,
+            fonte_resumo="Fluxo genérico (sem RAG): pergunta não exigia consulta ao banco.",
+            agente_acionado="agente_generico_gemini",
+            source_documents=[],
+        )
+
+    # 1) fluxo com coordenador + RAG
+    try:
         diag = coordenar(request.query, perfil)
         agente = diag["agente_escolhido"]
-        contexto = diag["contexto"]
+        contexto = diag["contexto"]  # já vem do RAG
         fontes = diag["fontes"]
         analise = diag["analise"]
 
-        # 2) Responder com o agente escolhido
         resposta = responder_por_agente(agente, request.query, contexto)
 
-        # 3) Montar retorno
         return QueryResponse(
             answer=resposta,
             fonte_resumo=analise,
@@ -440,7 +533,14 @@ async def ask_question(request: QueryRequest):
         )
     except Exception as e:
         print(f"Erro ao processar a pergunta: {e}")
-        raise HTTPException(status_code=500, detail="Erro interno ao processar sua pergunta.")
+        # fallback final: ainda assim tenta ajudar genericamente
+        resposta = responder_generico_gemini(request.query)
+        return QueryResponse(
+            answer=resposta,
+            fonte_resumo="Falha no fluxo RAG; resposta genérica fornecida.",
+            agente_acionado="fallback_generico_gemini",
+            source_documents=[],
+        )
 
 @app.post("/reindex", tags=["Administração"])
 async def reindex_documents(background_tasks: BackgroundTasks):
