@@ -1,0 +1,42 @@
+### 1) Status da API
+GET http://localhost:8000/
+Content-Type: application/json
+
+###
+
+### 2) Iniciar sessão com perfil "servidor_publico"
+POST http://localhost:8000/start
+Content-Type: application/json
+
+{
+  "session_id": "sessao123",
+  "perfil": "servidor_publico"
+}
+
+###
+
+### 3) Fazer pergunta usando a sessão criada
+POST http://localhost:8000/ask
+Content-Type: application/json
+
+{
+  "session_id": "sessao123",
+  "query": "Quais são as punições previstas para loteamento clandestino?"
+}
+
+###
+
+### 4) Fazer pergunta sem sessão, definindo perfil diretamente
+POST http://localhost:8000/ask
+Content-Type: application/json
+
+{
+  "perfil": "interesse_geral",
+  "query": "Modelos de notificação para obra irregular"
+}
+
+###
+
+### 5) Reindexar documentos (roda em segundo plano)
+POST http://localhost:8000/reindex
+Content-Type: application/json

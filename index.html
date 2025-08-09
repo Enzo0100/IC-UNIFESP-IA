@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tire sua dúvida com nossa IA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg: #d5e4d9;
+      --blue: #1b4557;
+      --green: #387b5b;
+      --light: #f9f9f9;
+      --ink: #1c1c1c;
+    }
+    *{ box-sizing:border-box }
+    html, body{ height:100% }
+    body{
+      margin:0; background:var(--bg); color:var(--blue);
+      font-family:"Montserrat", system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      line-height:1.5; font-weight:500;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .app{
+      width:min(920px, 100%);
+      height:min(90svh, 860px); /* svh melhora no mobile com teclado */
+      background:#fff; border:2px solid var(--green); border-radius:22px;
+      box-shadow:0 10px 30px rgba(27,69,87,.12);
+      display:grid; grid-template-rows:auto 1fr auto;
+      overflow:hidden;
+    }
+    header{
+      padding:18px 22px; background:linear-gradient(0deg, white, #edf3ef);
+      border-bottom:2px solid var(--green);
+      display:flex; align-items:center; gap:14px;
+    }
+    .logo{
+      width:42px; height:42px; border-radius:12px; background:var(--green);
+      display:grid; place-items:center; color:white; font-weight:700;
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,.25);
+      flex:0 0 42px;
+    }
+    .title{ font-size: clamp(20px, 3.4vw, 28px); color:var(--blue); margin:0; font-weight:700 }
+    .subtitle{ margin:0; color:var(--green); font-size: clamp(12px, 2.4vw, 14px) }
+
+    .chat{
+      padding:18px; overflow:auto; background:var(--bg);
+      display:flex; flex-direction:column; gap:14px;
+      scroll-behavior:smooth;
+    }
+    .msg{ display:flex; gap:10px; align-items:flex-end }
+    .msg .bubble{
+      max-width: 78ch; padding:12px 14px; border-radius:16px; border:1.5px solid var(--green);
+      background:white; color:var(--ink);
+      box-shadow:0 44px 14px rgba(27,69,87,.08);
+      word-wrap:break-word; white-space:pre-wrap;
+    }
+    .user{ justify-content:flex-end }
+    .user .bubble{
+      background:var(--light); color:var(--blue); border-color:var(--green);
+    }
+    .bot .avatar, .user .avatar{
+      width:34px; height:34px; border-radius:10px; background:var(--green); color:white;
+      display:grid; place-items:center; font-size:14px; font-weight:700; flex:0 0 34px;
+    }
+    .user .avatar{ background:var(--blue) }
+
+    .sources{ margin-top:10px; border-top:1px dashed var(--green); padding-top:10px; font-size:13px; color:var(--blue) }
+    .src-item{ background:white; border:1px solid var(--green); border-radius:12px; padding:10px; margin-top:8px }
+    .src-meta{ font-size:12px; opacity:.85 }
+
+    .input{
+      position: sticky; bottom: 0; /* fixa no rodapé da app */
+      padding:12px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+      background:#fff; border-top:2px solid var(--green);
+      display:flex; gap:10px; align-items:center;
+    }
+    textarea{
+      flex:1; resize:none; min-height:46px; max-height:140px; border:2px solid var(--green); border-radius:14px;
+      padding:12px 14px; outline:none; background:#fff; color:var(--blue);
+      font:inherit;
+    }
+    textarea::placeholder{ color:#6a8895 }
+    button{
+      appearance:none; border:none; background:var(--green); color:#fff; font-weight:700;
+      padding:14px 16px; border-radius:14px; cursor:pointer; transition: transform .04s ease, box-shadow .2s ease;
+      border:2px solid var(--green);
+      box-shadow:0 6px 18px rgba(56,123,91,.28);
+      touch-action:manipulation;
+    }
+    button:hover{ transform: translateY(-1px) }
+    button:active{ transform: translateY(0) scale(.99) }
+
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+    .pill{
+      font-size:12px; padding:6px 10px; background:var(--bg); color:var(--blue); border:1px solid var(--green); border-radius:999px;
+    }
+    .small{ font-size:12px; opacity:.8 }
+
+    .hidden{ display:none }
+    .spinner{ width:18px; height:18px; border:3px solid rgba(56,123,91,.25); border-top-color:var(--green); border-radius:50%; animation:spin 1s linear infinite }
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+
+    button:focus, textarea:focus{ outline: 3px solid rgba(56,123,91,.45); outline-offset:2px }
+
+    /* ---- Responsividade Mobile ---- */
+    @media (max-width: 640px){
+      body{ align-items:stretch }
+      .app{
+        height: 100svh; width:100%;
+        border-radius:0; border-left:none; border-right:none;
+      }
+      header{ padding:14px 16px }
+      .chat{ padding:12px }
+      .msg .bubble{ max-width: 100% }
+      button{ padding:14px 14px }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application">
+    <header>
+      <div class="logo" aria-hidden="true">R</div>
+      <div>
+        <h1 class="title">Tire sua duvida com nossa IA</h1>
+        <p class="subtitle">-----</p>
+      </div>
+      <div style="margin-left:auto" class="row small">
+        <span class="pill" title="Status da API"><span id="status-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#aaa;margin-right:8px;vertical-align:middle"></span><span id="status-text">Conectando…</span></span>
+      </div>
+    </header>
+
+    <main id="chat" class="chat" aria-live="polite">
+      <div class="msg bot">
+        <div class="avatar" aria-hidden="true">AI</div>
+        <div class="bubble">
+          Olá! Envie uma pergunta e eu respondo com base na nossa base de dados. Seja específico para eu conseguir lhe dar um melhor resultado.
+        </div>
+      </div>
+    </main>
+
+    <form class="input" id="form">
+      <textarea id="q" placeholder="Digite sua pergunta… (Enter envia • Shift+Enter quebra linha)" rows="2" required
+        autocomplete="off" autocapitalize="sentences" spellcheck="true"></textarea>
+      <button id="send" type="submit" aria-label="Enviar pergunta">
+        <span id="send-label">Enviar</span>
+        <span id="sending" class="hidden"><span class="spinner" aria-hidden="true"></span></span>
+      </button>
+    </form>
+  </div>
+
+  <script>
+    // >>>>>>> CONFIGURE AQUI <<<<<<<
+    const API_BASE = "http://localhost:8000";
+    // Caminhos do backend: GET /  e POST /ask
+
+    // Utilidades
+    const el = (sel, root=document) => root.querySelector(sel);
+    const chat = el('#chat');
+    const form = el('#form');
+    const ta = el('#q');
+    const sendBtn = el('#send');
+    const sendLbl = el('#send-label');
+    const sending = el('#sending');
+    const statusDot = el('#status-dot');
+    const statusText = el('#status-text');
+
+    function setBusy(isBusy){
+      sendBtn.disabled = isBusy;
+      sending.classList.toggle('hidden', !isBusy);
+      sendLbl.classList.toggle('hidden', isBusy);
+    }
+    function autoGrow(){
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(140, ta.scrollHeight) + 'px';
+    }
+    ta.addEventListener('input', autoGrow);
+
+    function addMessage(role, text){
+      const wrap = document.createElement('div');
+      wrap.className = `msg ${role}`;
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar';
+      avatar.textContent = role === 'user' ? 'Você' : 'AI';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+
+      wrap.appendChild(avatar);
+      wrap.appendChild(bubble);
+
+      chat.appendChild(wrap);
+      chat.scrollTop = chat.scrollHeight;
+      return wrap;
+    }
+
+    async function checkStatus(){
+      try{
+        const res = await fetch(`${API_BASE}/`);
+        if(!res.ok) throw new Error('Falha no status');
+        await res.json();
+        statusDot.style.background = '#26c281';
+        statusText.textContent = 'Online';
+      }catch(err){
+        statusDot.style.background = '#ff8a65';
+        statusText.textContent = 'Offline';
+      }
+    }
+    checkStatus();
+
+    // ---- Enter para enviar / Shift+Enter para quebrar linha ----
+    ta.addEventListener('keydown', (e)=>{
+      // evita interferir quando o usuário está usando IME (teclados de composição)
+      if (e.isComposing) return;
+
+      if (e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault(); // não insere nova linha
+        form.requestSubmit(); // envia
+      }
+      // se for Shift+Enter, deixa passar (quebra linha)
+    });
+
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const q = ta.value.trim();
+      if(!q) return;
+      addMessage('user', q);
+      ta.value=''; autoGrow();
+      setBusy(true);
+
+      const thinking = addMessage('bot', 'Pensando…');
+
+      try{
+        const url = `${API_BASE}/ask`;
+        const payload = { query: q };
+        const res = await fetch(url, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if(!res.ok){
+          const t = await res.text();
+          throw new Error(t || 'Erro na requisição');
+        }
+        const data = await res.json();
+        const bubble = thinking.querySelector('.bubble');
+        bubble.textContent = data.answer || '(sem resposta)';
+      }catch(err){
+        const bubble = thinking.querySelector('.bubble');
+        bubble.textContent = 'Ocorreu um erro ao processar sua pergunta. Verifique a URL da API e tente novamente.';
+        const ebox = document.createElement('div');
+        ebox.className = 'sources';
+        ebox.textContent = (err && err.message) ? err.message : String(err);
+        bubble.appendChild(ebox);
+      }finally{
+        setBusy(false);
+      }
+    });
+
+    // Ajuste inicial de altura do textarea
+    autoGrow();
+
+    // Opcional: rola o chat pro fim quando o teclado móvel abre (melhora UX no iOS/Android)
+    window.addEventListener('resize', ()=>{
+      chat.scrollTop = chat.scrollHeight;
+    });
+  </script>
+</body>
+</html>

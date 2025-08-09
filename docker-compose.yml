@@ -23,18 +23,3 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-
-  frontend:
-    build:
-      context: ./front-react
-      dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./front-react:/app
-      - /app/node_modules # Evita que o node_modules local sobrescreva o do container
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - rag_net

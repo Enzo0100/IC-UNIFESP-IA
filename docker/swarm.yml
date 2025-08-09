@@ -1,0 +1,21 @@
+version: '3.7'
+
+services:
+  ic-app:
+    image: enzo0001/ic-unifesp:v1
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.ic-app.rule=Host(`ic.educia.tech`)"
+        - "traefik.http.routers.ic-app.entrypoints=websecure"
+        - "traefik.http.services.ic-app.loadbalancer.server.port=8000"
+    networks:
+      - network_public
+    expose:
+      - "8000"
+
+networks:
+  network_public:
+    external: true
+    name: network_public

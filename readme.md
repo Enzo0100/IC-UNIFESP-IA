@@ -4,7 +4,7 @@
 - Inserção no Banco de Dados Vetorial ✅
 - Conexão com o modelo LLM ✅
 - Retrieval do Agent ✅
-- Validação do RAG
+- Validação do RAG 1
 - Implementação do Banco de Dados Relacional ✅ 
 - Análise de desempenho do agente atual ✅
 - Identificar pontos de falha nas respostas ✅
@@ -24,3 +24,12 @@
 - v1: Melhorias no retrieval - Em andamento
 - v2: Refinamento de prompts e contexto
 - v3: Sistema com feedback incorporado
+
+
+sou cidadão
+
+servidor publico
+
+outro perfil
+
+interesse geral > 
