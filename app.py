@@ -1,10 +1,14 @@
 import os
 from contextlib import asynccontextmanager
 from typing import Dict, List, Literal, Optional, Tuple
+import json
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from redis import asyncio as aioredis
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
 
 # LangChain / LLM / Vector
 from langchain_community.document_loaders import (
@@ -201,20 +205,33 @@ def should_use_database(query: str) -> bool:
 # =========================
 # NOVO: AGENTE GENÉRICO (GEMINI) SEM RAG
 # =========================
-def responder_generico_gemini(query: str) -> str:
+def responder_generico_gemini(query: str, history: List[Dict]) -> str:
     llm = _get_llm(temp=0.6)
+    history_str = format_history(history)
     prompt = f"""
 Você é um assistente amigável e claro, especializado em gestão/regimento territorial municipal no Brasil.
-Objetivo: responder brevemente, de forma útil e sem citar documentos internos, a perguntas gerais ou conversas.
-Se a pergunta exigir referência específica a leis locais, processos formais ou documentos internos, diga
-“posso detalhar se você quiser com base em documentos” — mas NÃO invente.
+Objetivo: responder brevemente, de forma útil e sem citar documentos internos, a perguntas gerais ou conversas,
+levando em conta o histórico da conversa para manter o contexto.
 
-Pergunta do usuário:
+Histórico da conversa:
+{history_str}
+
+Nova pergunta do usuário:
 {query}
 
 Resposta breve e direta:
 """
     return llm.invoke(prompt).content
+
+# =========================
+# FUNÇÃO AUXILIAR DE HISTÓRICO
+# =========================
+def format_history(history: List[Dict]) -> str:
+    """Formata o histórico para inclusão no prompt."""
+    if not history:
+        return "Nenhum histórico de conversa."
+    return "\n".join([f"{'Usuário' if msg['role'] == 'user' else 'Assistente'}: {msg['content']}" for msg in history])
+
 
 # =========================
 # PROMPTS DOS AGENTES
@@ -233,25 +250,31 @@ Se o tema for genérico/intro e não exigir citação, prefira “precisa_consul
 
 AGENTE_JURIDICO_PROMPT = """
 Você é o Agente 1_Jurídico (direito público/urbanístico/ambiental).
-Use SOMENTE o contexto a seguir se ele estiver presente. Se o contexto estiver vazio, não invente:
-diga o que falta e proponha próximos passos (normas/órgãos a consultar).
-Contexto (pode estar vazio):
+Sua resposta deve ser objetiva e com base na lei, usando o histórico e o contexto fornecidos.
+
+Histórico da conversa:
+{history}
+
+Contexto para a nova pergunta (pode estar vazio):
 {context}
 
-Pergunta do usuário:
+Nova pergunta do usuário:
 {question}
 
-Resposta objetiva (fundamentação quando houver contexto):
+Resposta objetiva e fundamentada:
 """
 
 AGENTE_OPERACIONAL_PROMPT = """
 Você é o Agente 2_Operacional.
-Use SOMENTE o contexto a seguir se ele estiver presente. Se estiver vazio, dê instruções gerais com caveats
-e liste o que precisaria do usuário para detalhar.
-Contexto (pode estar vazio):
+Sua resposta deve ser um passo a passo prático, considerando o histórico da conversa e o contexto.
+
+Histórico da conversa:
+{history}
+
+Contexto para a nova pergunta (pode estar vazio):
 {context}
 
-Pergunta do usuário:
+Nova pergunta do usuário:
 {question}
 
 Resposta (passo a passo, sucinta, com modelo se couber):
@@ -259,11 +282,15 @@ Resposta (passo a passo, sucinta, com modelo se couber):
 
 AGENTE_DADOS_PROMPT = """
 Você é o Agente 3_Dados_e_Sistemas.
-Use SOMENTE o contexto a seguir se ele estiver presente. Se estiver vazio, sugira fontes públicas padrão.
-Contexto (pode estar vazio):
+Sua resposta deve focar em fontes de dados, sistemas e validação, considerando o histórico e o contexto.
+
+Histórico da conversa:
+{history}
+
+Contexto para a nova pergunta (pode estar vazio):
 {context}
 
-Pergunta do usuário:
+Nova pergunta do usuário:
 {question}
 
 Resposta (fontes/sistemas/consulta/validação):
@@ -357,32 +384,28 @@ def coordenar(query: str, perfil: Perfil) -> Dict:
         "fontes": fontes,
     }
 
-def responder_por_agente(agente: str, pergunta: str, contexto: str) -> str:
+def responder_por_agente(agente: str, pergunta: str, contexto: str, history: List[Dict]) -> str:
     llm = _get_llm(0.0)
+    history_str = format_history(history)
+    input_vars = ["context", "question", "history"]
 
     if agente == "1_juridico":
-        prompt = PromptTemplate(
-            template=AGENTE_JURIDICO_PROMPT, input_variables=["context", "question"]
-        )
+        prompt = PromptTemplate(template=AGENTE_JURIDICO_PROMPT, input_variables=input_vars)
     elif agente == "3_dados_sistemas":
-        prompt = PromptTemplate(
-            template=AGENTE_DADOS_PROMPT, input_variables=["context", "question"]
-        )
+        prompt = PromptTemplate(template=AGENTE_DADOS_PROMPT, input_variables=input_vars)
     else:  # "2_operacional" default
-        prompt = PromptTemplate(
-            template=AGENTE_OPERACIONAL_PROMPT, input_variables=["context", "question"]
-        )
+        prompt = PromptTemplate(template=AGENTE_OPERACIONAL_PROMPT, input_variables=input_vars)
 
-    text = prompt.format(context=contexto, question=pergunta)
+    text = prompt.format(context=contexto, question=pergunta, history=history_str)
     return llm.invoke(text).content
 
 # =========================
 # FASTAPI APP
 # =========================
 
-# Estado de sessão simples em memória: session_id -> perfil
+# Usando Redis para sessões
 # (em prod, use Redis / banco e auth)
-SESSOES: Dict[str, Perfil] = {}
+# SESSOES: Dict[str, Perfil] = {} # Removido, pois usaremos Redis
 
 class StartRequest(BaseModel):
     session_id: str
@@ -402,6 +425,10 @@ class QueryResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Iniciando a API...")
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis_client = aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
+    FastAPICache.init(RedisBackend(redis_client), prefix="fastapi-cache")
+    print(f"FastAPI Cache inicializado com Redis em {redis_url}")
     inicializar_chatbot()
     yield
     cache.clear()
@@ -472,13 +499,17 @@ def read_root():
     return {"status": "online", "message": "Bem-vindo à API do Chatbot RAG + Agentes!"}
 
 @app.post("/start", tags=["Sessão"])
-def start_session(req: StartRequest):
+async def start_session(req: StartRequest):
     """
     Define o perfil do usuário no começo da interação.
     """
     if req.perfil not in ("cidadao", "servidor_publico", "interesse_geral"):
         raise HTTPException(status_code=400, detail="Perfil inválido.")
-    SESSOES[req.session_id] = req.perfil
+    
+    # Armazenar perfil no Redis
+    redis_client = FastAPICache.get_backend().redis
+    await redis_client.set(f"session:{req.session_id}:perfil", req.perfil, ex=3600) # Expira em 1 hora
+    
     return {"status": "ok", "session_id": req.session_id, "perfil": req.perfil}
 
 # ====== AJUSTE NO ENDPOINT /ask ======
@@ -490,13 +521,24 @@ async def ask_question(request: QueryRequest):
     if "qa_chain" not in cache or "vectorstore" not in cache:
         raise HTTPException(status_code=503, detail="Serviço indisponível. RAG não inicializado.")
 
-    # perfil
-    if request.session_id and request.session_id in SESSOES:
-        perfil: Perfil = SESSOES[request.session_id]
+    # Perfil e Histórico da sessão
+    perfil: Perfil
+    chat_history: List[Dict] = []
+    redis_client = FastAPICache.get_backend().redis
+
+    if request.session_id:
+        # Tenta obter perfil e histórico do Redis
+        stored_perfil, stored_history = await redis_client.mget(
+            f"session:{request.session_id}:perfil",
+            f"session:{request.session_id}:history"
+        )
+        perfil = cast(Perfil, stored_perfil) if stored_perfil else (request.perfil or "interesse_geral")
+        if stored_history:
+            chat_history = json.loads(stored_history)
     else:
         perfil = request.perfil or "interesse_geral"
 
-    print(f"[ASK] Perfil: {perfil} | Pergunta: {request.query}")
+    print(f"[ASK] Session: {request.session_id} | Perfil: {perfil} | Pergunta: {request.query}")
 
     # 0) decidir se consulta o banco
     try:
@@ -505,42 +547,55 @@ async def ask_question(request: QueryRequest):
         print(f"[Aviso] falha na decisão de uso do DB: {e}")
         usa_db = False  # fallback seguro
 
+    resposta: str
+    fonte_resumo: str
+    agente_acionado: str
+    source_documents: List[Dict] = []
+
     if not usa_db:
         # → resposta direta pelo agente genérico (Gemini) sem RAG
-        resposta = responder_generico_gemini(request.query)
-        return QueryResponse(
-            answer=resposta,
-            fonte_resumo="Fluxo genérico (sem RAG): pergunta não exigia consulta ao banco.",
-            agente_acionado="agente_generico_gemini",
-            source_documents=[],
+        resposta = responder_generico_gemini(request.query, chat_history)
+        fonte_resumo = "Fluxo genérico (sem RAG): pergunta não exigia consulta ao banco."
+        agente_acionado = "agente_generico_gemini"
+    else:
+        # 1) fluxo com coordenador + RAG
+        try:
+            diag = coordenar(request.query, perfil)
+            agente_acionado = diag["agente_escolhido"]
+            contexto = diag["contexto"]
+            source_documents = diag["fontes"]
+            fonte_resumo = diag["analise"]
+
+            resposta = responder_por_agente(agente_acionado, request.query, contexto, chat_history)
+        except Exception as e:
+            print(f"Erro ao processar a pergunta com RAG: {e}")
+            # fallback final: ainda assim tenta ajudar genericamente
+            resposta = responder_generico_gemini(request.query, chat_history)
+            fonte_resumo = "Falha no fluxo RAG; resposta genérica fornecida."
+            agente_acionado = "fallback_generico_gemini"
+
+    # Atualizar histórico no Redis se houver session_id
+    if request.session_id:
+        chat_history.append({"role": "user", "content": request.query})
+        chat_history.append({"role": "assistant", "content": resposta})
+        
+        # Limita o histórico para não sobrecarregar
+        MAX_HISTORY_LEN = 20  # 10 turnos
+        if len(chat_history) > MAX_HISTORY_LEN:
+            chat_history = chat_history[-MAX_HISTORY_LEN:]
+
+        await redis_client.set(
+            f"session:{request.session_id}:history",
+            json.dumps(chat_history),
+            ex=3600  # Expira em 1 hora
         )
 
-    # 1) fluxo com coordenador + RAG
-    try:
-        diag = coordenar(request.query, perfil)
-        agente = diag["agente_escolhido"]
-        contexto = diag["contexto"]  # já vem do RAG
-        fontes = diag["fontes"]
-        analise = diag["analise"]
-
-        resposta = responder_por_agente(agente, request.query, contexto)
-
-        return QueryResponse(
-            answer=resposta,
-            fonte_resumo=analise,
-            agente_acionado=agente,
-            source_documents=fontes,
-        )
-    except Exception as e:
-        print(f"Erro ao processar a pergunta: {e}")
-        # fallback final: ainda assim tenta ajudar genericamente
-        resposta = responder_generico_gemini(request.query)
-        return QueryResponse(
-            answer=resposta,
-            fonte_resumo="Falha no fluxo RAG; resposta genérica fornecida.",
-            agente_acionado="fallback_generico_gemini",
-            source_documents=[],
-        )
+    return QueryResponse(
+        answer=resposta,
+        fonte_resumo=fonte_resumo,
+        agente_acionado=agente_acionado,
+        source_documents=source_documents,
+    )
 
 @app.post("/reindex", tags=["Administração"])
 async def reindex_documents(background_tasks: BackgroundTasks):

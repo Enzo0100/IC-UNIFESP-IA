@@ -8,3 +8,4 @@ faiss-cpu
 sentence-transformers
 unstructured[docx,xlsx]
 redis>=5.0.0
+fastapi-cache2[redis]

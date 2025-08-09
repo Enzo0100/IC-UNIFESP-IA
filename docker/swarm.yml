@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   ic-app:
-    image: enzo0001/ic-unifesp:v1
+    image: enzo0001/enzo-ic:v0
     deploy:
       replicas: 1
       labels:
@@ -10,6 +10,11 @@ services:
         - "traefik.http.routers.ic-app.rule=Host(`ic.educia.tech`)"
         - "traefik.http.routers.ic-app.entrypoints=websecure"
         - "traefik.http.services.ic-app.loadbalancer.server.port=8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GOOGLE_API_KEY="AIzaSyBtCnsR4XxfYY4opgw_Dv_S2xqb9DQSU8g"
+      - SERPAPI_API_KEY="9e6f09bc312cd21d29c399431e6d05c0e72f7f03"
+      - SESS_TTL_SECONDS=28800
     networks:
       - network_public
     expose:
