@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Copia os arquivos da aplicação para o diretório de trabalho
-COPY . .
+COPY . ../.
 
 # Expõe a porta que a aplicação vai rodar
 EXPOSE 8000
