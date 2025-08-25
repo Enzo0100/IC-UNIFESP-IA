@@ -7,14 +7,14 @@ networks:
 services:
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - ..:/app
     environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_API_KEY=AIzaSyDHHi9PqeyuT7M0u-uT_DjrZ8AiyBdvnFQ
       - REDIS_URL=redis://redis:6379/0
     networks:
       - rag_net
