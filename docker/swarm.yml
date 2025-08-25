@@ -1,6 +1,6 @@
 services:
   ic-app:
-    image: enzo0001/enzo-ic:v0
+    image: enzo0001/enzo-ic:v2
     deploy:
       replicas: 1
       labels:

@@ -8,7 +8,7 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 
 # Copia o arquivo de dependências. O contexto de build deve ser a raiz do projeto.
-COPY docker/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia todos os arquivos do projeto para o WORKDIR
