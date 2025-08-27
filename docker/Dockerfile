@@ -7,12 +7,13 @@ WORKDIR /app
 # Adiciona o diretório de trabalho ao PYTHONPATH para garantir que os módulos sejam encontrados
 ENV PYTHONPATH=/app
 
-# Copia o arquivo de dependências. O contexto de build deve ser a raiz do projeto.
-COPY requirements.txt .
+# Copia o arquivo de dependências do diretório docker
+COPY docker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia todos os arquivos do projeto para o WORKDIR
-COPY . .
+# Copia todo o código do projeto
+COPY backend/ ./backend/
+COPY base_de_dados/ ./base_de_dados/
 
 # Expõe a porta que a aplicação vai rodar
 EXPOSE 8000

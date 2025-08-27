@@ -12,13 +12,25 @@ services:
         - "traefik.http.services.ic-app.loadbalancer.server.port=8000"
     environment:
       - REDIS_URL=redis://redis:6379
-      - GOOGLE_API_KEY=AIzaSyBtCnsR4XxfYY4opgw_Dv_S2xqb9DQSU8g
-      - SERPAPI_API_KEY=9e6f09bc312cd21d29c399431e6d05c0e72f7f03
+      - GOOGLE_API_KEY=
+      - SERPAPI_API_KEY=
       - SESS_TTL_SECONDS=28800
     networks:
       - network_public
     expose:
       - "8000"
+
+  redis:
+    image: redis:latest
+    deploy:
+      replicas: 1
+    networks:
+      - network_public
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   network_public:
