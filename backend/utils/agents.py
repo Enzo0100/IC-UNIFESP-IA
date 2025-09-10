@@ -98,7 +98,8 @@ def _get_llm(temp: float = 0.1):
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise ValueError("GOOGLE_API_KEY não encontrada no ambiente.")
-    return ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=temp, google_api_key=api_key)
+    model_name = os.getenv("MODEL", "gemini-2.5-flash")
+    return ChatGoogleGenerativeAI(model=model_name, temperature=temp, google_api_key=api_key)
 
 def format_history(history: List[Dict]) -> str:
     """Formata o histórico para inclusão no prompt."""

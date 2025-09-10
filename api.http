@@ -51,3 +51,36 @@ Content-Type: application/json
   "session_id": "sessao_cidadao_456",
   "perfil": "cidadao"
 }
+
+###
+
+### 7) Fazer pergunta com sessão de cidadão
+POST http://localhost:8000/api/ask
+Content-Type: application/json
+
+{
+  "session_id": "sessao_cidadao_456",
+  "query": "Como denunciar uma obra irregular na minha rua?"
+}
+
+###
+
+### 8) Fazer pergunta sem sessão com perfil cidadão
+POST http://localhost:8000/api/ask
+Content-Type: application/json
+
+{
+  "perfil": "cidadao",
+  "query": "Quais documentos preciso para regularizar minha propriedade?"
+}
+
+###
+
+### 9) Fazer pergunta sem sessão com perfil servidor público
+POST http://localhost:8000/api/ask
+Content-Type: application/json
+
+{
+  "perfil": "servidor_publico",
+  "query": "Procedimentos para fiscalização de loteamentos irregulares"
+}

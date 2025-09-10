@@ -82,13 +82,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"!!! ERRO ao conectar com Redis em {redis_url}: {e}")
         print("!!! Cache não será utilizado.")
-
-    # Carrega os dados e modelos em um thread de background para não travar a inicialização.
-    # Usamos um thread padrão com um loop de eventos gerenciado manualmente para evitar
-    # conflitos com bibliotecas que esperam um loop no contexto do thread.
     thread = threading.Thread(target=inicializar_chatbot_thread_safe, daemon=True)
     thread.start()
-    
     yield
     
     cache.clear()

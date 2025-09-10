@@ -2,11 +2,10 @@ import json
 from typing import List, Dict, cast
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi_cache import FastAPICache
-
 from backend.models import QueryRequest, QueryResponse, StartRequest, Perfil
 from backend.utils.cache import cache
-from backend.utils.heuristics import should_use_database
-from backend.utils.agents import coordenar, responder_por_agente, responder_generico_gemini
+from backend.utils.agents import responder_generico_gemini
+from backend.utils.langgraph_pipeline import run_graph_query
 from backend.api.lifespan import inicializar_chatbot
 
 router = APIRouter()
@@ -61,34 +60,20 @@ async def ask_question(request: QueryRequest):
 
     print(f"[ASK] Session: {request.session_id} | Perfil: {perfil} | Pergunta: {request.query}")
 
+    # Novo fluxo usando LangGraph (decisão interna + RAG condicional)
     try:
-        usa_db = should_use_database(request.query)
+        resultado = run_graph_query(request.query, perfil, chat_history)
+        resposta = resultado['answer']
+        fonte_resumo = resultado['fonte_resumo']
+        agente_acionado = resultado['agente_acionado']
+        source_documents = resultado['source_documents']
     except Exception as e:
-        print(f"[Aviso] falha na decisão de uso do DB: {e}")
-        usa_db = False
-
-    resposta: str
-    fonte_resumo: str
-    agente_acionado: str
-    source_documents: List[Dict] = []
-
-    if not usa_db:
+        print(f"[Erro] Falha no grafo LangGraph: {e}")
+        # Fallback para fluxo genérico legado
         resposta = responder_generico_gemini(request.query, chat_history)
-        fonte_resumo = "Fluxo genérico (sem RAG): pergunta não exigia consulta ao banco."
-        agente_acionado = "agente_generico_gemini"
-    else:
-        try:
-            diag = coordenar(request.query, perfil)
-            agente_acionado = diag["agente_escolhido"]
-            contexto = diag["contexto"]
-            source_documents = diag["fontes"]
-            fonte_resumo = diag["analise"]
-            resposta = responder_por_agente(agente_acionado, request.query, contexto, chat_history)
-        except Exception as e:
-            print(f"Erro ao processar a pergunta com RAG: {e}")
-            resposta = responder_generico_gemini(request.query, chat_history)
-            fonte_resumo = "Falha no fluxo RAG; resposta genérica fornecida."
-            agente_acionado = "fallback_generico_gemini"
+        fonte_resumo = "Falha no LangGraph; resposta genérica fornecida."
+        agente_acionado = "fallback_generico_gemini"
+        source_documents = []
 
     if request.session_id:
         chat_history.append({"role": "user", "content": request.query})

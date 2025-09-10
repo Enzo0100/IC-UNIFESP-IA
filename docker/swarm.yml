@@ -1,6 +1,6 @@
 services:
   ic-app:
-    image: enzo0001/enzo-ic:v2
+    image: enzo0001/enzo-ic:v4
     deploy:
       replicas: 1
       labels:
@@ -11,6 +11,7 @@ services:
         - "traefik.http.routers.ic-app.tls.certresolver=letsencryptresolver"
         - "traefik.http.services.ic-app.loadbalancer.server.port=8000"
     environment:
+      - MODEL=gemini-2.5-flash
       - REDIS_URL=redis://redis:6379
       - GOOGLE_API_KEY=
       - SERPAPI_API_KEY=

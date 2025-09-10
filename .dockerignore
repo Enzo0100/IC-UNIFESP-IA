@@ -1,0 +1,30 @@
+# Arquivos e pastas que não precisam ir para o contexto de build
+.git
+.gitignore
+
+# Bytecode / caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Ambientes virtuais
+venv/
+.venv/
+ENV/
+
+# Arquivos temporários / SO
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Não enviar índices gerados em runtime (pode ser grande). Se quiser embutir, remova estas linhas.
+faiss_index/
+
+# Node / frontend builds (caso venha a existir)
+node_modules/
+
+# IDE
+.vscode/
+.idea/

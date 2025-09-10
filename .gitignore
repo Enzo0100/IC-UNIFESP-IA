@@ -3,3 +3,4 @@ backend/__pycache__/
 *.pyo
 backend/faiss_index/
 .env
+.venv/

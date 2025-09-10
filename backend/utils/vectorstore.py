@@ -67,4 +67,11 @@ def build_retriever(k: int = 5, fetch_k: int = 20):
     if vectorstore is None:
         vectorstore = carregar_vectorstore()
         cache["vectorstore"] = vectorstore
-    return vectorstore.as_retriever(search_type="mmr", search_kwargs={"k": k, "fetch_k": fetch_k})
+    # Cache de retrievers específicos por (k, fetch_k)
+    retrievers_cache = cache.setdefault("retrievers", {})
+    key = f"mmr:{k}:{fetch_k}"
+    if key not in retrievers_cache:
+        retrievers_cache[key] = vectorstore.as_retriever(
+            search_type="mmr", search_kwargs={"k": k, "fetch_k": fetch_k}
+        )
+    return retrievers_cache[key]

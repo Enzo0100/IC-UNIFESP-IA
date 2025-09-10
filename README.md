@@ -4,6 +4,20 @@ Esta é uma API construída com FastAPI que implementa um chatbot de Geração A
 
 ## Arquitetura
 
+### Atualização (Otimização com LangGraph)
+
+Foi adicionada uma pipeline baseada em LangGraph (`backend/utils/langgraph_pipeline.py`) que decide dinamicamente o fluxo:
+- Small talk (1 chamada LLM, sem retrieval)
+- Pergunta genérica (1 chamada LLM)
+- Fluxo RAG completo (retrieval + coordenação + resposta com agente)
+
+Benefícios:
+- Menos chamadas redundantes (coordenação e resposta compartilham o mesmo contexto recuperado).
+- Cache de retrievers por parâmetros (k/fetch_k) evitando recriação.
+- Early exit rápido para perguntas simples, reduzindo latência percebida (objetivo: cair de ~50s para poucos segundos em cenários simples).
+
+Fallback: se ocorrer erro no grafo, o endpoint retorna ao fluxo genérico anterior automaticamente.
+
 O projeto é composto por um backend (API) e um frontend (interface do usuário).
 
 - **Backend (FastAPI)**:
@@ -135,8 +149,37 @@ A API expõe os seguintes endpoints:
 
 O projeto também pode ser executado com Docker e Docker Compose.
 
-1.  **Construa e inicie os contêineres:**
-    ```bash
-    docker-compose up --build
-    ```
-    A aplicação estará disponível em `http://localhost:8000`.
+### Estrutura esperada de build
+
+O `Dockerfile` está em `docker/Dockerfile`, mas ele referencia arquivos usando caminhos relativos à RAIZ do repositório (contexto de build). Por isso, ao executar o build você deve estar na raiz do projeto e apontar o Dockerfile explicitamente.
+
+Principais instruções do Dockerfile:
+- `COPY docker/requirements.txt .` -> copia `docker/requirements.txt` para `/app/requirements.txt` dentro da imagem.
+- `COPY backend/ ./backend/` -> copia o diretório `backend`.
+- `COPY base_de_dados/ ./base_de_dados/` -> copia documentos de origem (necessários para indexação inicial se você quiser gerar o índice dentro do container).
+
+Se você executar `docker build` dentro da pasta `docker/`, o caminho relativo `docker/requirements.txt` não existirá dentro desse contexto, causando o erro: `failed to calculate checksum ... "/docker/requirements.txt": not found`.
+
+### Build simples
+```bash
+docker build -f docker/Dockerfile -t chatbot-rag:latest .
+```
+
+### Executar container
+```bash
+docker run --rm -p 8000:8000 -e GOOGLE_API_KEY="SUA_CHAVE" chatbot-rag:latest
+```
+A API ficará disponível em `http://localhost:8000`.
+
+### Docker Compose
+Na raiz do repo:
+```bash
+docker-compose -f docker/docker-compose.yml up --build
+```
+
+### Dicas
+- Se não quiser copiar os arquivos de documentos ou índice FAISS para a imagem (para mantê-la leve), remova ou ajuste as instruções `COPY base_de_dados/` e ignore `faiss_index/` (já está no `.dockerignore` da raiz).
+- Para montar documentos dinamicamente:
+```bash
+docker run --rm -p 8000:8000 -v $(pwd)/base_de_dados:/app/base_de_dados -v $(pwd)/faiss_index:/app/faiss_index -e GOOGLE_API_KEY="SUA_CHAVE" chatbot-rag:latest
+```
