@@ -183,3 +183,6 @@ docker-compose -f docker/docker-compose.yml up --build
 ```bash
 docker run --rm -p 8000:8000 -v $(pwd)/base_de_dados:/app/base_de_dados -v $(pwd)/faiss_index:/app/faiss_index -e GOOGLE_API_KEY="SUA_CHAVE" chatbot-rag:latest
 ```
+
+
+deep learning libs > langchain libs > lang graph > backend fastapi > docker    

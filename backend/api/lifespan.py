@@ -17,11 +17,21 @@ def inicializar_chatbot():
     """Função síncrona que carrega todos os modelos e dados."""
     print("\n==> ETAPA 2: Inicialização do Chatbot <==")
     try:
-        # Garante vectorstore em cache
-        cache["vectorstore"] = carregar_vectorstore()
+        # Tenta carregar vectorstore, mas continua se falhar
+        try:
+            cache["vectorstore"] = carregar_vectorstore()
+        except ValueError as e:
+            print(f"⚠️  AVISO: {e}")
+            print("⚠️  Continuando sem vectorstore...")
+            cache["vectorstore"] = None
 
         # Mantém também um QA "puro" disponível
-        retriever = build_retriever()
+        try:
+            retriever = build_retriever()
+        except Exception as e:
+            print(f"⚠️  AVISO: Não foi possível criar retriever: {e}")
+            retriever = None
+        
         llm = _get_llm(0.0)
 
         base_prompt = PromptTemplate(
@@ -40,14 +50,18 @@ def inicializar_chatbot():
             input_variables=["context", "question"],
         )
 
-        qa_chain = RetrievalQA.from_chain_type(
-            llm=llm,
-            chain_type="stuff",
-            retriever=retriever,
-            return_source_documents=True,
-            chain_type_kwargs={"prompt": base_prompt},
-        )
-        cache["qa_chain"] = qa_chain
+        if retriever is not None:
+            qa_chain = RetrievalQA.from_chain_type(
+                llm=llm,
+                chain_type="stuff",
+                retriever=retriever,
+                return_source_documents=True,
+                chain_type_kwargs={"prompt": base_prompt},
+            )
+            cache["qa_chain"] = qa_chain
+        else:
+            print("⚠️  QA Chain não inicializado (sem retriever disponível)")
+            cache["qa_chain"] = None
 
         print("==> ETAPA 2 CONCLUÍDA. API pronta. <==")
     except Exception as e:

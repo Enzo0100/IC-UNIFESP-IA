@@ -15,7 +15,7 @@ services:
       - ..:/app
     environment:
       - MODEL=gemini-2.5-flash
-      - GOOGLE_API_KEY=AIzaSyBuUvEUv8jqWHGPvC6fYxDgLURUqwas3F4
+      - GOOGLE_API_KEY=
       - REDIS_URL=redis://redis:6379/0
     command: >
       uvicorn backend.app:app --host 0.0.0.0 --port 8000
